@@ -34,14 +34,14 @@ long double newtonRaphson(Token *postfix) {
     printf("Newton-Raphson: Bắt đầu với giá trị khởi tạo x = %.10Lf\n", x);
 
     while (1) {  // Lặp vô hạn như Casio cho đến khi tìm nghiệm
-        pthread_testcancel();  // Điểm kiểm tra hủy
-        long double fx = evaluatePostfix(postfix, x);  // Sửa lỗi: bỏ từ "acompañado"
+        long double fx = evaluatePostfix(postfix, x);
         long double dfx = derivative(postfix, x);
 
         // Kiểm tra lỗi nghiêm trọng
         if (isnan(fx) || isnan(dfx) || isinf(fx) || isinf(dfx)) {
-            printf("Newton-Raphson: Giá trị không hợp lệ tại x = %.10Lf\n", x);
-            return NAN;  // Thoát nếu gặp lỗi
+            printf("Newton-Raphson: Giá trị không hợp lệ tại x = %.10Lf, thử lại với x mới\n", x);
+            x += 0.1;  // Tăng x một chút để thử lại
+            continue;  // Tiếp tục lặp
         }
 
         // Tìm được nghiệm
@@ -50,7 +50,7 @@ long double newtonRaphson(Token *postfix) {
             return x;  // Dừng khi f(x) đủ nhỏ
         }
 
-        // Xử lý đạo hàm nhỏ (Casio thường nhảy một bước nhỏ hoặc báo lỗi)
+        // Xử lý đạo hàm nhỏ (Casio thường nhảy một bước nhỏ)
         if (fabsl(dfx) < EPSILON) {
             printf("Newton-Raphson: Đạo hàm quá nhỏ tại x = %.10Lf, nhảy bước nhỏ\n", x);
             x += 1e-6;  // Nhảy bước nhỏ giống Casio khi đạo hàm gần 0
@@ -62,11 +62,13 @@ long double newtonRaphson(Token *postfix) {
 
         // Kiểm tra giá trị mới
         if (isnan(x1) || isinf(x1)) {
-            printf("Newton-Raphson: Giá trị lặp mới không hợp lệ tại x = %.10Lf\n", x);
-            return NAN;  // Thoát nếu x1 không hợp lệ
+            printf("Newton-Raphson: Giá trị lặp mới không hợp lệ tại x = %.10Lf, thử lại với x mới\n", x);
+            x += 0.1;  // Tăng x một chút để thử lại
+            continue;
         }
 
         x = x1;  // Cập nhật x và tiếp tục
+        printf("Newton-Raphson: Lặp mới, x = %.10Lf\n", x);
     }
 
     return NAN;  // Không bao giờ đến đây do vòng lặp vô hạn
