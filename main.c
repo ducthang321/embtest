@@ -5,22 +5,57 @@
 #include <math.h>
 #include <time.h>
 #include <pthread.h>
+#include <pigpio.h>
 #include "postfix.h"
 #include "findroot.h"
 
 #define NUM_THREADS 3
+#define ROWS 7
+#define COLS 4
+#define MAX 100
 
-// Biến toàn cục cho luồng
+// Định nghĩa các chân GPIO cho bàn phím
+int rowPins[ROWS] = {17, 18, 27, 22, 23, 24, 25};
+int colPins[COLS] = {8, 7, 1, 4};
+
+// Bàn phím 7x4
+char keymap[ROWS][COLS] = {
+    {'1', '2', '3', '+'},
+    {'4', '5', '6', '-'},
+    {'7', '8', '9', '*'},
+    {'0', '.', '/', '^'},
+    {'(', ')', 'x', 'E'}, // 'E' để xác nhận
+    {'B', '\0', '\0', '\0'}, // 'B' để xóa ký tự cuối
+    {'\0', '\0', '\0', '\0'}
+};
+
+// Biến toàn cục
 int found = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_t threads[NUM_THREADS];
 long double best_result = 0.0;
-pthread_t threads[NUM_THREADS];  // Lưu trữ các thread để hủy khi cần
 
 typedef struct {
     Token *postfix;
-    long double result;  // Sử dụng long double
-    int thread_id;       // ID của thread để xác định thread nào tìm được nghiệm
+    long double result;
+    int thread_id;
 } ThreadData;
+
+// Hàm quét bàn phím
+char scanKeypad() {
+    for (int r = 0; r < ROWS; r++) {
+        gpioWrite(rowPins[r], PI_LOW);
+        for (int c = 0; c < COLS; c++) {
+            if (gpioRead(colPins[c]) == PI_LOW) {
+                while (gpioRead(colPins[c]) == PI_LOW) time_sleep(0.01); // Debounce
+                gpioWrite(rowPins[r], PI_HIGH);
+                return keymap[r][c];
+            }
+        }
+        gpioWrite(rowPins[r], PI_HIGH);
+    }
+    return '\0';
+}
 
 void *findrootNewton(void *arg) {
     ThreadData *data = (ThreadData *)arg;
@@ -33,7 +68,6 @@ void *findrootNewton(void *arg) {
             best_result = result;
             found = 1;
             printf("Newton-Raphson tìm được nghiệm: %.10Lf\n", best_result);
-            // Hủy các thread khác
             for (int i = 0; i < NUM_THREADS; i++) {
                 if (i != data->thread_id) {
                     pthread_cancel(threads[i]);
@@ -56,7 +90,6 @@ void *findrootBisection(void *arg) {
             best_result = result;
             found = 1;
             printf("Bisection tìm được nghiệm: %.10Lf\n", best_result);
-            // Hủy các thread khác
             for (int i = 0; i < NUM_THREADS; i++) {
                 if (i != data->thread_id) {
                     pthread_cancel(threads[i]);
@@ -79,7 +112,6 @@ void *findrootSecant(void *arg) {
             best_result = result;
             found = 1;
             printf("Secant tìm được nghiệm: %.10Lf\n", best_result);
-            // Hủy các thread khác
             for (int i = 0; i < NUM_THREADS; i++) {
                 if (i != data->thread_id) {
                     pthread_cancel(threads[i]);
@@ -95,47 +127,96 @@ int main() {
     struct timespec start, end;
     Token *output;
     char str[MAX];
+    int idx = 0;
+    char ch;
 
-    printf("Nhập biểu thức (ví dụ: x^2-4 hoặc (x^2+1)/(x-1)): ");
-    if (fgets(str, MAX, stdin) == NULL) {
-        printf("Lỗi khi đọc input!\n");
-        return 1;
-    }
-    str[strcspn(str, "\n")] = '\0';
-
-    if (strlen(str) == 0) {
-        printf("Biểu thức rỗng!\n");
+    // Khởi tạo pigpio
+    if (gpioInitialise() < 0) {
+        printf("Lỗi: Không thể khởi tạo pigpio!\n");
         return 1;
     }
 
-    printf("Biểu thức đã nhập: %s\n", str);
+    // Thiết lập các chân GPIO
+    for (int i = 0; i < ROWS; i++) {
+        gpioSetMode(rowPins[i], PI_OUTPUT);
+        gpioWrite(rowPins[i], PI_HIGH);
+    }
+    for (int i = 0; i < COLS; i++) {
+        gpioSetMode(colPins[i], PI_INPUT);
+        gpioSetPullUpDown(colPins[i], PI_PUD_UP);
+    }
 
+    // Nhập biểu thức từ bàn phím
+    printf("Nhập biểu thức bằng bàn phím 7x4 (ấn 'E' để xác nhận, 'B' để xóa ký tự cuối):\n");
+    printf("Hiện tại: ");
+    str[0] = '\0';
+
+    while (1) {
+        ch = scanKeypad();
+        if (ch == '\0') continue;
+        if (ch == 'E') {
+            str[idx] = '\0';
+            printf("\nBiểu thức đã nhập: %s\n", str);
+            break;
+        } else if (ch == 'B') {
+            if (idx > 0) {
+                idx--;
+                str[idx] = '\0';
+                printf("\rHiện tại: %s  ", str);
+                fflush(stdout);
+            }
+        } else if (idx < MAX - 1) {
+            str[idx++] = ch;
+            str[idx] = '\0';
+            printf("\rHiện tại: %s", str);
+            fflush(stdout);
+        }
+    }
+
+    // Chuyển đổi sang postfix
     output = infixToPostfix(str);
     if (output == NULL) {
         printf("Lỗi khi chuyển đổi biểu thức!\n");
+        gpioTerminate();
         return 1;
     }
 
     printTokens(output);
 
+    // Tạo dữ liệu cho các luồng
     ThreadData threadData[NUM_THREADS];
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    // Chạy tất cả các phương pháp tìm nghiệm song song
+    // Chạy các phương pháp tìm nghiệm song song
     threadData[0].postfix = output;
     threadData[0].thread_id = 0;
-    pthread_create(&threads[0], NULL, findrootNewton, (void *)&threadData[0]);
+    if (pthread_create(&threads[0], NULL, findrootNewton, (void *)&threadData[0]) != 0) {
+        printf("Lỗi khi tạo thread Newton-Raphson!\n");
+        free(output);
+        gpioTerminate();
+        return 1;
+    }
 
     threadData[1].postfix = output;
     threadData[1].thread_id = 1;
-    pthread_create(&threads[1], NULL, findrootBisection, (void *)&threadData[1]);
+    if (pthread_create(&threads[1], NULL, findrootBisection, (void *)&threadData[1]) != 0) {
+        printf("Lỗi khi tạo thread Bisection!\n");
+        free(output);
+        gpioTerminate();
+        return 1;
+    }
 
     threadData[2].postfix = output;
     threadData[2].thread_id = 2;
-    pthread_create(&threads[2], NULL, findrootSecant, (void *)&threadData[2]);
+    if (pthread_create(&threads[2], NULL, findrootSecant, (void *)&threadData[2]) != 0) {
+        printf("Lỗi khi tạo thread Secant!\n");
+        free(output);
+        gpioTerminate();
+        return 1;
+    }
 
-    // Chờ các luồng hoàn thành (hoặc bị hủy)
+    // Chờ các luồng hoàn thành
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_join(threads[i], NULL);
     }
@@ -154,6 +235,9 @@ int main() {
         printf("Không tìm được nghiệm hợp lệ!\n");
     }
 
+    // Giải phóng tài nguyên
     free(output);
+    pthread_mutex_destroy(&mutex);
+    gpioTerminate();
     return 0;
 }
