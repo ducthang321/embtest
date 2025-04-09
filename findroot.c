@@ -6,6 +6,9 @@
 
 #define EPSILON 1e-10  // Độ chính xác yêu cầu
 
+// Biến toàn cục từ main.c
+extern int stop_all;
+
 // Khởi tạo seed cho hàm random
 void initRandom() {
     static int initialized = 0;
@@ -33,10 +36,12 @@ long double newtonRaphson(Token *postfix) {
     int num_guesses = sizeof(initial_guesses) / sizeof(initial_guesses[0]);
     
     for (int guess_idx = 0; guess_idx < num_guesses; guess_idx++) {
+        if (stop_all) return NAN;  // Dừng nếu đã tìm được nghiệm
         long double x = initial_guesses[guess_idx];
         printf("Newton-Raphson: Thử giá trị khởi tạo x = %.10Lf\n", x);
 
         while (1) {  // Lặp vô hạn cho đến khi tìm được nghiệm
+            if (stop_all) return NAN;  // Dừng nếu đã tìm được nghiệm
             long double fx = evaluatePostfix(postfix, x);
             long double dfx = derivative(postfix, x);
 
@@ -68,10 +73,12 @@ long double newtonRaphson(Token *postfix) {
     // Nếu không tìm được nghiệm với các giá trị khởi tạo cố định, thử ngẫu nhiên
     initRandom();
     while (1) {
+        if (stop_all) return NAN;  // Dừng nếu đã tìm được nghiệm
         long double x = (long double)(rand() % 20001 - 10000);  // Giá trị ngẫu nhiên từ -10000 đến 10000
         printf("Newton-Raphson: Thử giá trị khởi tạo ngẫu nhiên x = %.10Lf\n", x);
 
         while (1) {
+            if (stop_all) return NAN;  // Dừng nếu đã tìm được nghiệm
             long double fx = evaluatePostfix(postfix, x);
             long double dfx = derivative(postfix, x);
 
@@ -107,6 +114,7 @@ long double newtonRaphson(Token *postfix) {
 long double bisectionMethod(Token *postfix) {
     initRandom();
     while (1) {  // Lặp vô hạn cho đến khi tìm được nghiệm
+        if (stop_all) return NAN;  // Dừng nếu đã tìm được nghiệm
         // Tạo khoảng ngẫu nhiên
         long double a = (long double)(rand() % 20001 - 10000);  // Từ -10000 đến 10000
         long double b = (long double)(rand() % 20001 - 10000);
@@ -131,6 +139,7 @@ long double bisectionMethod(Token *postfix) {
         }
 
         while (1) {
+            if (stop_all) return NAN;  // Dừng nếu đã tìm được nghiệm
             long double c = (a + b) / 2;
             long double fc = evaluatePostfix(postfix, c);
 
@@ -162,11 +171,13 @@ long double secantMethod(Token *postfix) {
     int num_pairs = sizeof(initial_pairs) / sizeof(initial_pairs[0]);
 
     for (int pair_idx = 0; pair_idx < num_pairs; pair_idx++) {
+        if (stop_all) return NAN;  // Dừng nếu đã tìm được nghiệm
         long double x0 = initial_pairs[pair_idx][0];
         long double x1 = initial_pairs[pair_idx][1];
         printf("Secant: Thử cặp khởi tạo (x0 = %.10Lf, x1 = %.10Lf)\n", x0, x1);
 
         while (1) {
+            if (stop_all) return NAN;  // Dừng nếu đã tìm được nghiệm
             long double f0 = evaluatePostfix(postfix, x0);
             long double f1 = evaluatePostfix(postfix, x1);
 
@@ -199,11 +210,13 @@ long double secantMethod(Token *postfix) {
     // Nếu không tìm được nghiệm với các cặp khởi tạo cố định, thử ngẫu nhiên
     initRandom();
     while (1) {
+        if (stop_all) return NAN;  // Dừng nếu đã tìm được nghiệm
         long double x0 = (long double)(rand() % 20001 - 10000);
         long double x1 = (long double)(rand() % 20001 - 10000);
         printf("Secant: Thử cặp khởi tạo ngẫu nhiên (x0 = %.10Lf, x1 = %.10Lf)\n", x0, x1);
 
         while (1) {
+            if (stop_all) return NAN;  // Dừng nếu đã tìm được nghiệm
             long double f0 = evaluatePostfix(postfix, x0);
             long double f1 = evaluatePostfix(postfix, x1);
 
