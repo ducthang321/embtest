@@ -35,7 +35,7 @@ long double newtonRaphson(Token *postfix) {
 
     while (1) {  // Lặp vô hạn như Casio cho đến khi tìm nghiệm
         pthread_testcancel();  // Điểm kiểm tra hủy
-        acompañado long double fx = evaluatePostfix(postfix, x);
+        long double fx = evaluatePostfix(postfix, x);  // Sửa lỗi: bỏ từ "acompañado"
         long double dfx = derivative(postfix, x);
 
         // Kiểm tra lỗi nghiêm trọng
