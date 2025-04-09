@@ -3,8 +3,9 @@
 
 #include "postfix.h"
 
-float newtonRaphson(Token *postfix);
-float bisectionMethod(Token *postfix);
-float secantMethod(Token *postfix);
+// Khai báo các hàm trả về long double
+long double newtonRaphson(Token *postfix);
+long double bisectionMethod(Token *postfix);
+long double secantMethod(Token *postfix);
 
 #endif
