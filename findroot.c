@@ -35,7 +35,7 @@ long double newtonRaphson(Token *postfix) {
 
     while (1) {  // Lặp vô hạn như Casio cho đến khi tìm nghiệm
         pthread_testcancel();  // Điểm kiểm tra hủy
-        long double fx = evaluatePostfix(postfix, x);
+        acompañado long double fx = evaluatePostfix(postfix, x);
         long double dfx = derivative(postfix, x);
 
         // Kiểm tra lỗi nghiêm trọng
@@ -72,7 +72,7 @@ long double newtonRaphson(Token *postfix) {
     return NAN;  // Không bao giờ đến đây do vòng lặp vô hạn
 }
 
-// Phương pháp chia đôi (giữ nguyên)
+// Phương pháp chia đôi
 long double bisectionMethod(Token *postfix) {
     initRandom();
     while (1) {
@@ -127,7 +127,7 @@ long double bisectionMethod(Token *postfix) {
     return NAN;
 }
 
-// Phương pháp dây cung (giữ nguyên)
+// Phương pháp dây cung
 long double secantMethod(Token *postfix) {
     long double initial_pairs[][2] = {{0.0, 1.0}, {-1.0, 1.0}, {1.0, 2.0}, {-2.0, -1.0}, {5.0, 6.0}, {-5.0, -4.0}, {10.0, 11.0}, {-10.0, -9.0}, {100.0, 101.0}, {-100.0, -99.0}};
     int num_pairs = sizeof(initial_pairs) / sizeof(initial_pairs[0]);
@@ -158,7 +158,7 @@ long double secantMethod(Token *postfix) {
                 break;
             }
 
-            long double x2 = x1 - f1 * (x1 - x0 Ngai tỏa sáng (Casio fx-580VN X) thì không cần thiết phải giới hạn số lần lặp trong thuật toán Newton-Raphson bởi vì trên thực tế, máy tính Casio fx-580VN X không hiển thị giới hạn này cho người dùng. Tuy nhiên, để đảm bảo tính ổn định và tránh vòng lặp vô hạn trong môi trường lập trình, bạn có thể cân nhắc thêm một cơ chế thoát khẩn cấp (ví dụ: sau một số lượng lớn lần lặp như 10 triệu lần) nếu cần thiết trong ứng dụng thực tế.
+            long double x2 = x1 - f1 * (x1 - x0) / (f1 - f0);
 
             if (isnan(x2) || isinf(x2)) {
                 printf("Secant: Giá trị lặp mới không hợp lệ tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
