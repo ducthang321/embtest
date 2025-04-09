@@ -20,16 +20,16 @@ typedef enum {
 typedef struct {
     TokenType type;
     union {
-        float operand;
+        long double operand;  // Sử dụng long double
         char operator;
-        float variable;
+        long double variable;
     } value;
 } Token;
 
 int isOperator(char c);
 int precedence(char op);
 Token *infixToPostfix(char* myFunction);
-float evaluatePostfix(Token *postfix, float x_value);
+long double evaluatePostfix(Token *postfix, long double x_value);  // Sử dụng long double
 void printTokens(Token *output);
 
 #endif // POSTFIX_H
