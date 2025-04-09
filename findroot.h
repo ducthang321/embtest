@@ -4,7 +4,6 @@
 #include "postfix.h"
 
 float newtonRaphson(Token *postfix);
-float bisectionMethod(Token *postfix);
-float secantMethod(Token *postfix);
+
 
 #endif
