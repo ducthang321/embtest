@@ -9,15 +9,15 @@ HEADERS = postfix.h findroot.h
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-    $(CC) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
+	$(CC) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
 
 %.o: %.c $(HEADERS)
-    $(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-    rm -f $(OBJECTS) $(TARGET)
+	rm -f $(OBJECTS) $(TARGET)
 
 run: $(TARGET)
-    ./$(TARGET)
+	./$(TARGET)
 
 .PHONY: all clean run
