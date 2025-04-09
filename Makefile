@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -g -O2
-LDFLAGS = -lm -pthread
+LDFLAGS = -lm -pthread  # Bỏ -lwiringPi
 TARGET = rootfinder
 SOURCES = main.c postfix.c findroot.c
 OBJECTS = $(SOURCES:.c=.o)
