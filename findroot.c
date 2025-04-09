@@ -7,7 +7,7 @@
 
 #define EPSILON 1e-10  // Độ chính xác yêu cầu, giống Casio
 
-// Khởi tạo seed cho hàm random (giữ nguyên để tương thích, dù không dùng trong Newton)
+// Khởi tạo seed cho hàm random
 void initRandom() {
     static int initialized = 0;
     if (!initialized) {
@@ -129,80 +129,30 @@ long double bisectionMethod(Token *postfix) {
     return NAN;
 }
 
-// Phương pháp dây cung
+// Phương pháp dây cung (cải thiện dựa trên code cũ)
 long double secantMethod(Token *postfix) {
-    // Tập hợp các điểm để quét và chọn cặp khởi tạo
-    long double points[] = {-100.0, -50.0, -10.0, -5.0, -1.0, -0.9, -0.5, -0.1, 0.0, 0.1, 0.5, 0.9, 1.0, 5.0, 10.0, 50.0, 100.0};
-    int num_points = sizeof(points) / sizeof(points[0]);
-    int max_iter = 1000; // Giới hạn số lần lặp cho mỗi cặp
+    // Mở rộng tập hợp cặp khởi tạo cố định, bao gồm các vùng gần nghiệm đã biết
+    long double initial_pairs[][2] = {
+        {-1.0, -0.8}, {-0.9, -0.7}, {-0.1, 0.0}, {0.0, 0.1}, {0.9, 1.0}, // Gần x = 0 và x = -0.9
+        {-2.0, -1.0}, {1.0, 2.0}, {-5.0, -4.0}, {4.0, 5.0}, // Các khoảng trung bình
+        {-10.0, -9.0}, {9.0, 10.0}, {-100.0, -99.0}, {99.0, 100.0} // Các khoảng lớn
+    };
+    int num_pairs = sizeof(initial_pairs) / sizeof(initial_pairs[0]);
+    int max_iter = 1000; // Giới hạn số lần lặp
+    int max_stagnation = 10; // Số lần lặp tối đa mà giá trị không cải thiện
 
-    // Quét qua các điểm để tìm cặp khởi tạo tốt
-    for (int i = 0; i < num_points - 1; i++) {
-        for (int j = i + 1; j < num_points; j++) {
-            long double x0 = points[i];
-            long double x1 = points[j];
-            long double f0 = evaluatePostfix(postfix, x0);
-            long double f1 = evaluatePostfix(postfix, x1);
-
-            // Bỏ qua nếu giá trị không hợp lệ
-            if (isnan(f0) || isnan(f1) || isinf(f0) || isinf(f1)) {
-                printf("Secant: Giá trị không hợp lệ tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
-                continue;
-            }
-
-            // Ưu tiên cặp có dấu khác nhau hoặc giá trị nhỏ
-            if (f0 * f1 < 0 || fabsl(f0) < 1e-5 || fabsl(f1) < 1e-5) {
-                printf("Secant: Thử cặp khởi tạo (x0 = %.10Lf, x1 = %.10Lf)\n", x0, x1);
-                int iter = 0;
-
-                while (iter < max_iter) {
-                    pthread_testcancel(); // Giữ điểm hủy để dừng luồng nếu cần
-
-                    f0 = evaluatePostfix(postfix, x0);
-                    f1 = evaluatePostfix(postfix, x1);
-
-                    if (isnan(f0) || isnan(f1) || isinf(f0) || isinf(f1)) {
-                        printf("Secant: Giá trị không hợp lệ tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
-                        break;
-                    }
-
-                    if (fabsl(f1) < EPSILON) {
-                        printf("Secant: Tìm được nghiệm x = %.10Lf (f(x) = %.10Lf)\n", x1, f1);
-                        return x1;
-                    }
-
-                    if (fabsl(f1 - f0) < EPSILON) {
-                        printf("Secant: Mẫu số quá nhỏ tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
-                        break;
-                    }
-
-                    long double x2 = x1 - f1 * (x1 - x0) / (f1 - f0);
-                    if (isnan(x2) || isinf(x2)) {
-                        printf("Secant: Giá trị lặp mới không hợp lệ tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
-                        break;
-                    }
-
-                    x0 = x1;
-                    x1 = x2;
-                    iter++;
-                    printf("Secant: Lặp %d, x = %.10Lf\n", iter, x1);
-                }
-            }
-        }
-    }
-
-    printf("Secant: Không tìm được nghiệm với các cặp khởi tạo đã thử\n");
-    return NAN;
-}
-
-    initRandom();
-    while (1) {
+    // Phần 1: Thử các cặp khởi tạo cố định
+    for (int pair_idx = 0; pair_idx < num_pairs; pair_idx++) {
         pthread_testcancel();
-        long double x0 = (long double)(rand() % 20001 - 10000);
-        long double x1 = (long double)(rand() % 20001 - 10000);
-        printf("Secant: Thử cặp khởi tạo ngẫu nhiên (x0 = %.10Lf, x1 = %.10Lf)\n", x0, x1);
+        long double x0 = initial_pairs[pair_idx][0];
+        long double x1 = initial_pairs[pair_idx][1];
+        printf("Secant: Thử cặp khởi tạo (x0 = %.10Lf, x1 = %.10Lf)\n", x0, x1);
 
-        while (1) {
+        int iter = 0;
+        int stagnation_count = 0;
+        long double last_x1 = x1;
+
+        while (iter < max_iter) {
             pthread_testcancel();
             long double f0 = evaluatePostfix(postfix, x0);
             long double f1 = evaluatePostfix(postfix, x1);
@@ -217,22 +167,112 @@ long double secantMethod(Token *postfix) {
                 return x1;
             }
 
+            // Kiểm tra stagnation
+            if (fabsl(x1 - last_x1) < EPSILON) {
+                stagnation_count++;
+                if (stagnation_count >= max_stagnation) {
+                    printf("Secant: Giá trị lặp không cải thiện tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
+                    break;
+                }
+            } else {
+                stagnation_count = 0;
+            }
+            last_x1 = x1;
+
             if (fabsl(f1 - f0) < EPSILON) {
                 printf("Secant: Mẫu số quá nhỏ tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
                 break;
             }
 
             long double x2 = x1 - f1 * (x1 - x0) / (f1 - f0);
-
             if (isnan(x2) || isinf(x2)) {
                 printf("Secant: Giá trị lặp mới không hợp lệ tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
                 break;
             }
 
+            // Giới hạn x2 trong khoảng [x0, x1] để tránh dao động
+            long double min_x = x0 < x1 ? x0 : x1;
+            long double max_x = x0 < x1 ? x1 : x0;
+            if (x2 < min_x || x2 > max_x) {
+                printf("Secant: Giá trị lặp x2 = %.10Lf nằm ngoài khoảng [%.10Lf, %.10Lf], điều chỉnh\n", x2, min_x, max_x);
+                x2 = (min_x + max_x) / 2; // Lấy điểm giữa
+            }
+
             x0 = x1;
             x1 = x2;
+            iter++;
+            printf("Secant: Lặp %d, x = %.10Lf\n", iter, x1);
         }
     }
 
+    // Phần 2: Thử cặp ngẫu nhiên nếu các cặp cố định không tìm được nghiệm
+    printf("Secant: Không tìm được nghiệm với các cặp cố định, thử cặp ngẫu nhiên\n");
+    initRandom();
+    int max_attempts = 10; // Số lần thử ngẫu nhiên tối đa
+    for (int attempt = 0; attempt < max_attempts; attempt++) {
+        pthread_testcancel();
+        // Chọn ngẫu nhiên trong khoảng nhỏ hơn để tránh giá trị lớn
+        long double x0 = (long double)(rand() % 201 - 100); // [-100, 100]
+        long double x1 = (long double)(rand() % 201 - 100);
+        printf("Secant: Thử cặp khởi tạo ngẫu nhiên (x0 = %.10Lf, x1 = %.10Lf)\n", x0, x1);
+
+        int iter = 0;
+        int stagnation_count = 0;
+        long double last_x1 = x1;
+
+        while (iter < max_iter) {
+            pthread_testcancel();
+            long double f0 = evaluatePostfix(postfix, x0);
+            long double f1 = evaluatePostfix(postfix, x1);
+
+            if (isnan(f0) || isnan(f1) || isinf(f0) || isinf(f1)) {
+                printf("Secant: Giá trị không hợp lệ tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
+                break;
+            }
+
+            if (fabsl(f1) < EPSILON) {
+                printf("Secant: Tìm được nghiệm x = %.10Lf (f(x) = %.10Lf)\n", x1, f1);
+                return x1;
+            }
+
+            // Kiểm tra stagnation
+            if (fabsl(x1 - last_x1) < EPSILON) {
+                stagnation_count++;
+                if (stagnation_count >= max_stagnation) {
+                    printf("Secant: Giá trị lặp không cải thiện tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
+                    break;
+                }
+            } else {
+                stagnation_count = 0;
+            }
+            last_x1 = x1;
+
+            if (fabsl(f1 - f0) < EPSILON) {
+                printf("Secant: Mẫu số quá nhỏ tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
+                break;
+            }
+
+            long double x2 = x1 - f1 * (x1 - x0) / (f1 - f0);
+            if (isnan(x2) || isinf(x2)) {
+                printf("Secant: Giá trị lặp mới không hợp lệ tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
+                break;
+            }
+
+            // Giới hạn x2 trong khoảng [x0, x1]
+            long double min_x = x0 < x1 ? x0 : x1;
+            long double max_x = x0 < x1 ? x1 : x0;
+            if (x2 < min_x || x2 > max_x) {
+                printf("Secant: Giá trị lặp x2 = %.10Lf nằm ngoài khoảng [%.10Lf, %.10Lf], điều chỉnh\n", x2, min_x, max_x);
+                x2 = (min_x + max_x) / 2;
+            }
+
+            x0 = x1;
+            x1 = x2;
+            iter++;
+            printf("Secant: Lặp %d, x = %.10Lf\n", iter, x1);
+        }
+    }
+
+    printf("Secant: Không tìm được nghiệm với các cặp khởi tạo đã thử\n");
     return NAN;
 }
