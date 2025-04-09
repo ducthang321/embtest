@@ -28,84 +28,47 @@ long double derivative(Token *postfix, long double x) {
     return (fx_plus_h - fx_minus_h) / (2 * h);
 }
 
-// Phương pháp Newton-Raphson với nhiều giá trị khởi tạo
+// Phương pháp Newton-Raphson (phiên bản đơn giản)
 long double newtonRaphson(Token *postfix) {
-    long double initial_guesses[] = {1.0, -1.0, 0.0, 2.0, -2.0, 5.0, -5.0, 10.0, -10.0, 100.0, -100.0, 1000.0, -1000.0};
-    int num_guesses = sizeof(initial_guesses) / sizeof(initial_guesses[0]);
-    
-    for (int guess_idx = 0; guess_idx < num_guesses; guess_idx++) {
+    long double x = 1.0;  // Giá trị khởi tạo
+    printf("Newton-Raphson: Bắt đầu với giá trị khởi tạo x = %.10Lf\n", x);
+
+    while (1) {  // Lặp vô hạn cho đến khi tìm được nghiệm
         pthread_testcancel();  // Điểm kiểm tra hủy
-        long double x = initial_guesses[guess_idx];
-        printf("Newton-Raphson: Thử giá trị khởi tạo x = %.10Lf\n", x);
+        long double fx = evaluatePostfix(postfix, x);
+        long double dfx = derivative(postfix, x);
 
-        while (1) {  // Lặp vô hạn cho đến khi tìm được nghiệm
-            pthread_testcancel();  // Điểm kiểm tra hủy
-            long double fx = evaluatePostfix(postfix, x);
-            long double dfx = derivative(postfix, x);
-
-            if (isnan(fx) || isnan(dfx) || isinf(fx) || isinf(dfx)) {
-                printf("Newton-Raphson: Giá trị không hợp lệ tại x = %.10Lf (giá trị khởi tạo %.10Lf)\n", x, initial_guesses[guess_idx]);
-                break;
-            }
-
-            if (fabsl(fx) < EPSILON) {
-                return x;  // Tìm được nghiệm
-            }
-
-            if (fabsl(dfx) < EPSILON) {
-                printf("Newton-Raphson: Đạo hàm quá nhỏ tại x = %.10Lf (giá trị khởi tạo %.10Lf)\n", x, initial_guesses[guess_idx]);
-                break;
-            }
-
-            long double x1 = x - fx / dfx;
-
-            if (isnan(x1) || isinf(x1)) {
-                printf("Newton-Raphson: Giá trị lặp mới không hợp lệ tại x = %.10Lf (giá trị khởi tạo %.10Lf)\n", x, initial_guesses[guess_idx]);
-                break;
-            }
-
-            x = x1;
+        if (isnan(fx) || isnan(dfx) || isinf(fx) || isinf(dfx)) {
+            printf("Newton-Raphson: Giá trị không hợp lệ tại x = %.10Lf\n", x);
+            break;
         }
+
+        if (fabsl(fx) < EPSILON) {
+            printf("Newton-Raphson: Tìm được nghiệm x = %.10Lf (f(x) = %.10Lf)\n", x, fx);
+            return x;  // Tìm được nghiệm
+        }
+
+        if (fabsl(dfx) < EPSILON) {
+            printf("Newton-Raphson: Đạo hàm quá nhỏ tại x = %.10Lf\n", x);
+            break;
+        }
+
+        long double x1 = x - fx / dfx;
+
+        if (isnan(x1) || isinf(x1)) {
+            printf("Newton-Raphson: Giá trị lặp mới không hợp lệ tại x = %.10Lf\n", x);
+            break;
+        }
+
+        if (fabsl(x1 - x) < EPSILON) {
+            printf("Newton-Raphson: Tìm được nghiệm x = %.10Lf (f(x) = %.10Lf)\n", x1, evaluatePostfix(postfix, x1));
+            return x1;  // Giá trị hội tụ
+        }
+
+        x = x1;
     }
 
-    // Nếu không tìm được nghiệm với các giá trị khởi tạo cố định, thử ngẫu nhiên
-    initRandom();
-    while (1) {
-        pthread_testcancel();  // Điểm kiểm tra hủy
-        long double x = (long double)(rand() % 20001 - 10000);  // Giá trị ngẫu nhiên từ -10000 đến 10000
-        printf("Newton-Raphson: Thử giá trị khởi tạo ngẫu nhiên x = %.10Lf\n", x);
-
-        while (1) {
-            pthread_testcancel();  // Điểm kiểm tra hủy
-            long double fx = evaluatePostfix(postfix, x);
-            long double dfx = derivative(postfix, x);
-
-            if (isnan(fx) || isnan(dfx) || isinf(fx) || isinf(dfx)) {
-                printf("Newton-Raphson: Giá trị không hợp lệ tại x = %.10Lf (giá trị khởi tạo ngẫu nhiên)\n", x);
-                break;
-            }
-
-            if (fabsl(fx) < EPSILON) {
-                return x;
-            }
-
-            if (fabsl(dfx) < EPSILON) {
-                printf("Newton-Raphson: Đạo hàm quá nhỏ tại x = %.10Lf (giá trị khởi tạo ngẫu nhiên)\n", x);
-                break;
-            }
-
-            long double x1 = x - fx / dfx;
-
-            if (isnan(x1) || isinf(x1)) {
-                printf("Newton-Raphson: Giá trị lặp mới không hợp lệ tại x = %.10Lf (giá trị khởi tạo ngẫu nhiên)\n", x);
-                break;
-            }
-
-            x = x1;
-        }
-    }
-
-    return NAN;  // Không bao giờ đến đây do vòng lặp vô hạn
+    return NAN;  // Trả về NAN nếu không tìm được nghiệm
 }
 
 // Phương pháp chia đôi với khoảng ngẫu nhiên
@@ -143,10 +106,11 @@ long double bisectionMethod(Token *postfix) {
 
             if (isnan(fc) || isinf(fc)) {
                 printf("Bisection: Giá trị không hợp lệ tại x = %.10Lf trong khoảng [%.10Lf, %.10Lf]\n", c, a, b);
-                break;
+            break;
             }
 
             if (fabsl(fc) < EPSILON || fabsl(b - a) < EPSILON) {
+                printf("Bisection: Tìm được nghiệm x = %.10Lf (f(x) = %.10Lf)\n", c, fc);
                 return c;  // Tìm được nghiệm
             }
 
@@ -185,6 +149,7 @@ long double secantMethod(Token *postfix) {
             }
 
             if (fabsl(f1) < EPSILON) {
+                printf("Secant: Tìm được nghiệm x = %.10Lf (f(x) = %.10Lf)\n", x1, f1);
                 return x1;
             }
 
@@ -224,6 +189,7 @@ long double secantMethod(Token *postfix) {
             }
 
             if (fabsl(f1) < EPSILON) {
+                printf("Secant: Tìm được nghiệm x = %.10Lf (f(x) = %.10Lf)\n", x1, f1);
                 return x1;
             }
 
