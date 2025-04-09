@@ -12,7 +12,7 @@
 
 typedef struct {
     Token *postfix;
-    float result;
+    double result;  // Sử dụng double thay vì float để tăng độ chính xác
     int valid;
     char method_name[20]; // Tên phương pháp để in thông báo
 } ThreadData;
@@ -20,7 +20,7 @@ typedef struct {
 void *findrootNewton(void *arg) {
     ThreadData *data = (ThreadData *)arg;
     strcpy(data->method_name, "Newton-Raphson");
-    float result = newtonRaphson(data->postfix);
+    double result = newtonRaphson(data->postfix);
     data->result = result;
     data->valid = !isnan(result) && !isinf(result);
     pthread_exit(NULL);
@@ -29,7 +29,7 @@ void *findrootNewton(void *arg) {
 void *findrootBisection(void *arg) {
     ThreadData *data = (ThreadData *)arg;
     strcpy(data->method_name, "Bisection");
-    float result = bisectionMethod(data->postfix);
+    double result = bisectionMethod(data->postfix);
     data->result = result;
     data->valid = !isnan(result) && !isinf(result);
     pthread_exit(NULL);
@@ -38,7 +38,7 @@ void *findrootBisection(void *arg) {
 void *findrootSecant(void *arg) {
     ThreadData *data = (ThreadData *)arg;
     strcpy(data->method_name, "Secant");
-    float result = secantMethod(data->postfix);
+    double result = secantMethod(data->postfix);
     data->result = result;
     data->valid = !isnan(result) && !isinf(result);
     pthread_exit(NULL);
@@ -115,21 +115,21 @@ int main() {
 
     // Kiểm tra kết quả
     int found = 0;
-    float best_result = 0.0;
+    double best_result = 0.0;  // Sử dụng double thay vì float
     for (int i = 0; i < NUM_THREADS; i++) {
         if (threadData[i].valid) {
-            float fx = evaluatePostfix(output, threadData[i].result);
+            double fx = evaluatePostfix(output, threadData[i].result);  // Sử dụng double
             if (isnan(fx) || isinf(fx)) {
-                printf("%s: Giá trị hàm tại x = %.6f không hợp lệ (NaN/Inf)\n", threadData[i].method_name, threadData[i].result);
+                printf("%s: Giá trị hàm tại x = %.10f không hợp lệ (NaN/Inf)\n", threadData[i].method_name, threadData[i].result);
                 continue;
             }
-            if (fabs(fx) < 1e-6) {
+            if (fabs(fx) < 1e-10) {  // Điều chỉnh EPSILON từ 1e-6 thành 1e-10
                 best_result = threadData[i].result;
                 found = 1;
-                printf("%s tìm được nghiệm: %.6f\n", threadData[i].method_name, best_result);
+                printf("%s tìm được nghiệm: %.10f\n", threadData[i].method_name, best_result);
                 break;
             } else {
-                printf("%s: Giá trị hàm tại x = %.6f là %.6f (không phải nghiệm)\n", threadData[i].method_name, threadData[i].result, fx);
+                printf("%s: Giá trị hàm tại x = %.10f là %.10f (không phải nghiệm)\n", threadData[i].method_name, threadData[i].result, fx);
             }
         } else {
             printf("%s: Không hội tụ (kết quả không hợp lệ)\n", threadData[i].method_name);
@@ -140,9 +140,9 @@ int main() {
     printf("Thời gian tìm nghiệm: %.6f giây\n", elapsed);
 
     if (found) {
-        float fx = evaluatePostfix(output, best_result);
-        printf("Kết quả với nghiệm %.6f là: %.6f\n", best_result, fx);
-        if (fabs(fx) > 1e-6) {
+        double fx = evaluatePostfix(output, best_result);  // Sử dụng double
+        printf("Kết quả với nghiệm %.10f là: %.10f\n", best_result, fx);
+        if (fabs(fx) > 1e-10) {  // Điều chỉnh EPSILON từ 1e-6 thành 1e-10
             printf("Cảnh báo: Giá trị tại nghiệm không đủ gần 0!\n");
         }
     } else {
