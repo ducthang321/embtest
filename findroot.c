@@ -30,46 +30,51 @@ long double derivative(Token *postfix, long double x) {
 
 // Phương pháp Newton-Raphson (phiên bản đơn giản)
 long double newtonRaphson(Token *postfix) {
-    long double x = 1.0;  // Giá trị khởi tạo
-    printf("Newton-Raphson: Bắt đầu với giá trị khởi tạo x = %.10Lf\n", x);
+    const int max_iterations = 100;        // Giới hạn vòng lặp như Casio
+    const long double tolerance = EPSILON; // Độ chính xác dừng
+    long double x = 1.0;                   // Giá trị khởi tạo (giống Casio)
 
-    while (1) {  // Lặp vô hạn cho đến khi tìm được nghiệm
-        pthread_testcancel();  // Điểm kiểm tra hủy
+    printf("Newton-Raphson (Casio style): Bắt đầu với x = %.10Lf\n", x);
+
+    for (int i = 0; i < max_iterations; i++) {
+        pthread_testcancel();  // Cho phép huỷ thread an toàn
+
         long double fx = evaluatePostfix(postfix, x);
         long double dfx = derivative(postfix, x);
 
         if (isnan(fx) || isnan(dfx) || isinf(fx) || isinf(dfx)) {
             printf("Newton-Raphson: Giá trị không hợp lệ tại x = %.10Lf\n", x);
-            break;
+            return NAN;
         }
 
-        if (fabsl(fx) < EPSILON) {
-            printf("Newton-Raphson: Tìm được nghiệm x = %.10Lf (f(x) = %.10Lf)\n", x, fx);
-            return x;  // Tìm được nghiệm
-        }
-
-        if (fabsl(dfx) < EPSILON) {
+        if (fabsl(dfx) < tolerance) {
             printf("Newton-Raphson: Đạo hàm quá nhỏ tại x = %.10Lf\n", x);
-            break;
+            return NAN;
         }
 
-        long double x1 = x - fx / dfx;
+        long double x_next = x - fx / dfx;
 
-        if (isnan(x1) || isinf(x1)) {
+        if (isnan(x_next) || isinf(x_next)) {
             printf("Newton-Raphson: Giá trị lặp mới không hợp lệ tại x = %.10Lf\n", x);
-            break;
+            return NAN;
         }
 
-        if (fabsl(x1 - x) < EPSILON) {
-            printf("Newton-Raphson: Tìm được nghiệm x = %.10Lf (f(x) = %.10Lf)\n", x1, evaluatePostfix(postfix, x1));
-            return x1;  // Giá trị hội tụ
+        long double fx_next = evaluatePostfix(postfix, x_next);
+
+        printf("  Iteration %d: x = %.10Lf, f(x) = %.10Lf\n", i + 1, x_next, fx_next);
+
+        if (fabsl(fx_next) < tolerance || fabsl(x_next - x) < tolerance) {
+            printf("Newton-Raphson: Tìm được nghiệm x = %.10Lf (f(x) = %.10Lf)\n", x_next, fx_next);
+            return x_next;
         }
 
-        x = x1;
+        x = x_next;
     }
 
-    return NAN;  // Trả về NAN nếu không tìm được nghiệm
+    printf("Newton-Raphson: Không hội tụ sau %d bước lặp.\n", max_iterations);
+    return NAN;
 }
+
 
 // Phương pháp chia đôi với khoảng ngẫu nhiên
 long double bisectionMethod(Token *postfix) {
