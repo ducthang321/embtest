@@ -4,8 +4,45 @@
 #include <ctype.h>
 #include <math.h>
 #include <time.h>
+#include <pthread.h>
 #include "postfix.h"
 #include "findroot.h"
+
+#define NUM_THREADS 3
+
+typedef struct {
+    Token *postfix;
+    float result;
+    int valid;
+    char method_name[20]; // Tên phương pháp để in thông báo
+} ThreadData;
+
+void *findrootNewton(void *arg) {
+    ThreadData *data = (ThreadData *)arg;
+    strcpy(data->method_name, "Newton-Raphson");
+    float result = newtonRaphson(data->postfix);
+    data->result = result;
+    data->valid = !isnan(result) && !isinf(result);
+    pthread_exit(NULL);
+}
+
+void *findrootBisection(void *arg) {
+    ThreadData *data = (ThreadData *)arg;
+    strcpy(data->method_name, "Bisection");
+    float result = bisectionMethod(data->postfix);
+    data->result = result;
+    data->valid = !isnan(result) && !isinf(result);
+    pthread_exit(NULL);
+}
+
+void *findrootSecant(void *arg) {
+    ThreadData *data = (ThreadData *)arg;
+    strcpy(data->method_name, "Secant");
+    float result = secantMethod(data->postfix);
+    data->result = result;
+    data->valid = !isnan(result) && !isinf(result);
+    pthread_exit(NULL);
+}
 
 int main() {
     struct timespec start, end;
@@ -17,7 +54,6 @@ int main() {
         printf("Lỗi khi đọc input!\n");
         return 1;
     }
-    // Xóa ký tự xuống dòng
     str[strcspn(str, "\n")] = '\0';
 
     if (strlen(str) == 0) {
@@ -35,22 +71,68 @@ int main() {
 
     printTokens(output);
 
+    pthread_t threads[NUM_THREADS];
+    ThreadData threadData[NUM_THREADS] = {0};
+
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    // Gọi phương pháp Newton-Raphson
-    float result = newtonRaphson(output);
-    int found = 0;
-    float best_result = 0.0;
+    // Khởi tạo các thread
+    for (int i = 0; i < NUM_THREADS; i++) {
+        threadData[i].postfix = output;
+        switch(i) {
+            case 0:
+                if (pthread_create(&threads[i], NULL, findrootNewton, &threadData[i]) != 0) {
+                    printf("Lỗi tạo thread Newton!\n");
+                    free(output);
+                    return 1;
+                }
+                break;
+            case 1:
+                if (pthread_create(&threads[i], NULL, findrootBisection, &threadData[i]) != 0) {
+                    printf("Lỗi tạo thread Bisection!\n");
+                    free(output);
+                    return 1;
+                }
+                break;
+            case 2:
+                if (pthread_create(&threads[i], NULL, findrootSecant, &threadData[i]) != 0) {
+                    printf("Lỗi tạo thread Secant!\n");
+                    free(output);
+                    return 1;
+                }
+                break;
+        }
+    }
+
+    // Chờ tất cả thread hoàn thành
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if (pthread_join(threads[i], NULL) != 0) {
+            printf("Lỗi khi chờ thread %d!\n", i);
+        }
+    }
 
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     // Kiểm tra kết quả
-    if (!isnan(result) && !isinf(result)) {
-        float fx = evaluatePostfix(output, result);
-        if (!isnan(fx) && !isinf(fx) && fabs(fx) < 1e-6) {
-            best_result = result;
-            found = 1;
-            printf("Newton-Raphson tìm được nghiệm: %.6f\n", best_result);
+    int found = 0;
+    float best_result = 0.0;
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if (threadData[i].valid) {
+            float fx = evaluatePostfix(output, threadData[i].result);
+            if (isnan(fx) || isinf(fx)) {
+                printf("%s: Giá trị hàm tại x = %.6f không hợp lệ (NaN/Inf)\n", threadData[i].method_name, threadData[i].result);
+                continue;
+            }
+            if (fabs(fx) < 1e-6) {
+                best_result = threadData[i].result;
+                found = 1;
+                printf("%s tìm được nghiệm: %.6f\n", threadData[i].method_name, best_result);
+                break;
+            } else {
+                printf("%s: Giá trị hàm tại x = %.6f là %.6f (không phải nghiệm)\n", threadData[i].method_name, threadData[i].result, fx);
+            }
+        } else {
+            printf("%s: Không hội tụ (kết quả không hợp lệ)\n", threadData[i].method_name);
         }
     }
 
