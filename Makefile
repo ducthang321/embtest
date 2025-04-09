@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -g -O2
-LDFLAGS = -lm
+LDFLAGS = -lm -pthread
 TARGET = rootfinder
 SOURCES = main.c postfix.c findroot.c
 OBJECTS = $(SOURCES:.c=.o)
