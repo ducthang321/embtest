@@ -47,9 +47,9 @@ Token *infixToPostfix(char *myFunction) {
                 break;
 
             case S_OPERAND: {
-                float operand = 0.0;
+                long double operand = 0.0;
                 int decimal_flag = 0;
-                float decimal_divisor = 1.0;
+                long double decimal_divisor = 1.0;
 
                 if (isdigit(*ptr) || *ptr == '.') {
                     while (isdigit(*ptr) || *ptr == '.') {
@@ -149,9 +149,9 @@ Token *infixToPostfix(char *myFunction) {
     }
 }
 
-float evaluatePostfix(Token *postfix, float x_value) {
+long double evaluatePostfix(Token *postfix, long double x_value) {
     int stackTop = -1;
-    float stack[MAX];
+    long double stack[MAX];
     int i = 0;
 
     while (postfix[i].type != OPERATOR || postfix[i].value.operator != 'E') {
@@ -164,8 +164,8 @@ float evaluatePostfix(Token *postfix, float x_value) {
                 printf("Lỗi: Thiếu toán hạng!\n");
                 return NAN;
             }
-            float b = stack[stackTop--];
-            float a = stack[stackTop--];
+            long double b = stack[stackTop--];
+            long double a = stack[stackTop--];
             switch (postfix[i].value.operator) {
                 case '+': stack[++stackTop] = a + b; break;
                 case '-': stack[++stackTop] = a - b; break;
@@ -177,7 +177,7 @@ float evaluatePostfix(Token *postfix, float x_value) {
                     }
                     stack[++stackTop] = a / b; 
                     break;
-                case '^': stack[++stackTop] = powf(a, b); break;
+                case '^': stack[++stackTop] = powl(a, b); break;  // Sử dụng powl cho long double
                 default: 
                     printf("Lỗi: Toán tử không hợp lệ!\n");
                     return NAN;
@@ -197,7 +197,7 @@ void printTokens(Token *output) {
     printf("Biểu thức hậu tố: ");
     while (output[i].type != OPERATOR || output[i].value.operator != 'E') {
         if (output[i].type == OPERAND) {
-            printf("%.2f ", output[i].value.operand);
+            printf("%.2Lf ", output[i].value.operand);
         } else if (output[i].type == OPERATOR) {
             printf("%c ", output[i].value.operator);
         } else if (output[i].type == VARIABLE) {
