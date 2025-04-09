@@ -4,46 +4,10 @@
 #include <ctype.h>
 #include <math.h>
 #include <time.h>
-#include <pthread.h>
 #include "postfix.h"
 #include "findroot.h"
 
-#define NUM_THREADS 3
-// Bỏ #define MAX 256 vì đã có trong postfix.h
-
-// Biến toàn cục
-int found = 0;
-float best_result = 0.0;
-
-typedef struct {
-    Token *postfix;
-    float result;
-    int valid;  // Thêm flag để kiểm tra kết quả hợp lệ
-} ThreadData;
-
-void *findrootNewton(void *arg) {
-    ThreadData *data = (ThreadData *)arg;
-    float result = newtonRaphson(data->postfix);
-    data->result = result;
-    data->valid = !isnan(result) && !isinf(result);
-    pthread_exit(NULL);
-}
-
-void *findrootBisection(void *arg) {
-    ThreadData *data = (ThreadData *)arg;
-    float result = bisectionMethod(data->postfix);
-    data->result = result;
-    data->valid = !isnan(result) && !isinf(result);
-    pthread_exit(NULL);
-}
-
-void *findrootSecant(void *arg) {
-    ThreadData *data = (ThreadData *)arg;
-    float result = secantMethod(data->postfix);
-    data->result = result;
-    data->valid = !isnan(result) && !isinf(result);
-    pthread_exit(NULL);
-}
+// Bỏ #define NUM_THREADS vì không cần thread nữa
 
 int main() {
     struct timespec start, end;
@@ -73,65 +37,22 @@ int main() {
 
     printTokens(output);
 
-    pthread_t threads[NUM_THREADS];
-    ThreadData threadData[NUM_THREADS] = {0};  // Khởi tạo tất cả giá trị về 0
-
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    // Khởi tạo các thread
-    for (int i = 0; i < NUM_THREADS; i++) {
-        threadData[i].postfix = output;
-        switch(i) {
-            case 0:
-                if (pthread_create(&threads[i], NULL, findrootNewton, &threadData[i]) != 0) {
-                    printf("Lỗi tạo thread Newton!\n");
-                    free(output);
-                    return 1;
-                }
-                break;
-            case 1:
-                if (pthread_create(&threads[i], NULL, findrootBisection, &threadData[i]) != 0) {
-                    printf("Lỗi tạo thread Bisection!\n");
-                    free(output);
-                    return 1;
-                }
-                break;
-            case 2:
-                if (pthread_create(&threads[i], NULL, findrootSecant, &threadData[i]) != 0) {
-                    printf("Lỗi tạo thread Secant!\n");
-                    free(output);
-                    return 1;
-                }
-                break;
-        }
-    }
-
-    // Chờ tất cả thread hoàn thành
-    for (int i = 0; i < NUM_THREADS; i++) {
-        if (pthread_join(threads[i], NULL) != 0) {
-            printf("Lỗi khi chờ thread %d!\n", i);
-        }
-    }
+    // Gọi trực tiếp phương pháp Newton-Raphson
+    float result = newtonRaphson(output);
+    int found = 0;
+    float best_result = 0.0;
 
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     // Kiểm tra kết quả
-    for (int i = 0; i < NUM_THREADS; i++) {
-        if (threadData[i].valid) {
-            float fx = evaluatePostfix(output, threadData[i].result);
-            if (isnan(fx) || isinf(fx)) {
-                continue;
-            }
-            if (fabs(fx) < 1e-4) {
-                best_result = threadData[i].result;
-                found = 1;
-                switch(i) {
-                    case 0: printf("Newton-Raphson tìm được nghiệm: %.6f\n", best_result); break;
-                    case 1: printf("Bisection tìm được nghiệm: %.6f\n", best_result); break;
-                    case 2: printf("Secant tìm được nghiệm: %.6f\n", best_result); break;
-                }
-                break;
-            }
+    if (!isnan(result) && !isinf(result)) {
+        float fx = evaluatePostfix(output, result);
+        if (!isnan(fx) && !isinf(fx) && fabs(fx) < 1e-6) {
+            best_result = result;
+            found = 1;
+            printf("Newton-Raphson tìm được nghiệm: %.6f\n", best_result);
         }
     }
 
@@ -141,7 +62,7 @@ int main() {
     if (found) {
         float fx = evaluatePostfix(output, best_result);
         printf("Kết quả với nghiệm %.6f là: %.6f\n", best_result, fx);
-        if (fabs(fx) > 1e-4) {
+        if (fabs(fx) > 1e-6) {
             printf("Cảnh báo: Giá trị tại nghiệm không đủ gần 0!\n");
         }
     } else {
