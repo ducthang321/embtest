@@ -9,6 +9,7 @@
 #include "findroot.h"
 
 #define NUM_THREADS 3
+#define MAX 256 // Độ dài tối đa của biểu thức
 
 // Biến toàn cục cho luồng
 int found = 0;
@@ -41,10 +42,14 @@ void *findrootSecant(void *arg) {
 int main() {
     struct timespec start, end;
     Token *output;
-    // Biểu thức được hardcode thay vì nhập từ keypad
-    char str[] = "(x^14-3*x^12+7*x^9)-(5*x^8+2*x^6)+(4*x^5-11*x^3+6*x^2)-(20*x-50)";
+    char str[MAX];
 
-    printf("Biểu thức: %s\n", str);
+    printf("Nhập biểu thức (ví dụ: x^2-4 hoặc (x^2+1)/(x-1)): ");
+    fgets(str, MAX, stdin);
+    // Xóa ký tự xuống dòng nếu có
+    str[strcspn(str, "\n")] = 0;
+
+    printf("Biểu thức đã nhập: %s\n", str);
 
     output = infixToPostfix(str);
     if (output != NULL) {
