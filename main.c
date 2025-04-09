@@ -10,43 +10,70 @@
 
 #define NUM_THREADS 3
 
+// Biến toàn cục cho luồng
+int found = 0;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+long double best_result = 0.0;
+
 typedef struct {
     Token *postfix;
-    double result;  // Sử dụng double thay vì float để tăng độ chính xác
-    int valid;
-    char method_name[20]; // Tên phương pháp để in thông báo
+    long double result;  // Sử dụng long double
 } ThreadData;
 
 void *findrootNewton(void *arg) {
     ThreadData *data = (ThreadData *)arg;
-    strcpy(data->method_name, "Newton-Raphson");
-    double result = newtonRaphson(data->postfix);
-    data->result = result;
-    data->valid = !isnan(result) && !isinf(result);
+    data->result = newtonRaphson(data->postfix);
+
+    pthread_mutex_lock(&mutex);
+    if (!found && !isnan(data->result)) {
+        long double fx = evaluatePostfix(data->postfix, data->result);
+        if (fabsl(fx) < 1e-10) {
+            best_result = data->result;
+            found = 1;
+            printf("Newton-Raphson tìm được nghiệm: %.10Lf\n", best_result);
+        }
+    }
+    pthread_mutex_unlock(&mutex);
     pthread_exit(NULL);
 }
 
 void *findrootBisection(void *arg) {
     ThreadData *data = (ThreadData *)arg;
-    strcpy(data->method_name, "Bisection");
-    double result = bisectionMethod(data->postfix);
-    data->result = result;
-    data->valid = !isnan(result) && !isinf(result);
+    data->result = bisectionMethod(data->postfix);
+
+    pthread_mutex_lock(&mutex);
+    if (!found && !isnan(data->result)) {
+        long double fx = evaluatePostfix(data->postfix, data->result);
+        if (fabsl(fx) < 1e-10) {
+            best_result = data->result;
+            found = 1;
+            printf("Bisection tìm được nghiệm: %.10Lf\n", best_result);
+        }
+    }
+    pthread_mutex_unlock(&mutex);
     pthread_exit(NULL);
 }
 
 void *findrootSecant(void *arg) {
     ThreadData *data = (ThreadData *)arg;
-    strcpy(data->method_name, "Secant");
-    double result = secantMethod(data->postfix);
-    data->result = result;
-    data->valid = !isnan(result) && !isinf(result);
+    data->result = secantMethod(data->postfix);
+
+    pthread_mutex_lock(&mutex);
+    if (!found && !isnan(data->result)) {
+        long double fx = evaluatePostfix(data->postfix, data->result);
+        if (fabsl(fx) < 1e-10) {
+            best_result = data->result;
+            found = 1;
+            printf("Secant tìm được nghiệm: %.10Lf\n", best_result);
+        }
+    }
+    pthread_mutex_unlock(&mutex);
     pthread_exit(NULL);
 }
 
 int main() {
     struct timespec start, end;
-    Token *output = NULL;
+    Token *output;
     char str[MAX];
 
     printf("Nhập biểu thức (ví dụ: x^2-4 hoặc (x^2+1)/(x-1)): ");
@@ -64,91 +91,46 @@ int main() {
     printf("Biểu thức đã nhập: %s\n", str);
 
     output = infixToPostfix(str);
-    if (output == NULL) {
-        printf("Lỗi khi chuyển đổi biểu thức sang postfix!\n");
-        return 1;
-    }
+    if (output != NULL) {
+        printTokens(output);
 
-    printTokens(output);
+        pthread_t threads[NUM_THREADS];
+        ThreadData threadData[NUM_THREADS];
 
-    pthread_t threads[NUM_THREADS];
-    ThreadData threadData[NUM_THREADS] = {0};
+        clock_gettime(CLOCK_MONOTONIC, &start);
 
-    clock_gettime(CLOCK_MONOTONIC, &start);
+        // Chạy tất cả các phương pháp tìm nghiệm
+        threadData[0].postfix = output;
+        pthread_create(&threads[0], NULL, findrootNewton, (void *)&threadData[0]);
 
-    // Khởi tạo các thread
-    for (int i = 0; i < NUM_THREADS; i++) {
-        threadData[i].postfix = output;
-        switch(i) {
-            case 0:
-                if (pthread_create(&threads[i], NULL, findrootNewton, &threadData[i]) != 0) {
-                    printf("Lỗi tạo thread Newton!\n");
-                    free(output);
-                    return 1;
-                }
-                break;
-            case 1:
-                if (pthread_create(&threads[i], NULL, findrootBisection, &threadData[i]) != 0) {
-                    printf("Lỗi tạo thread Bisection!\n");
-                    free(output);
-                    return 1;
-                }
-                break;
-            case 2:
-                if (pthread_create(&threads[i], NULL, findrootSecant, &threadData[i]) != 0) {
-                    printf("Lỗi tạo thread Secant!\n");
-                    free(output);
-                    return 1;
-                }
-                break;
+        threadData[1].postfix = output;
+        pthread_create(&threads[1], NULL, findrootBisection, (void *)&threadData[1]);
+
+        threadData[2].postfix = output;
+        pthread_create(&threads[2], NULL, findrootSecant, (void *)&threadData[2]);
+
+        // Chờ các luồng hoàn thành
+        for (int i = 0; i < NUM_THREADS; i++) {
+            pthread_join(threads[i], NULL);
         }
-    }
 
-    // Chờ tất cả thread hoàn thành
-    for (int i = 0; i < NUM_THREADS; i++) {
-        if (pthread_join(threads[i], NULL) != 0) {
-            printf("Lỗi khi chờ thread %d!\n", i);
-        }
-    }
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+        printf("Thời gian tìm nghiệm: %.6f giây\n", elapsed);
 
-    clock_gettime(CLOCK_MONOTONIC, &end);
-
-    // Kiểm tra kết quả
-    int found = 0;
-    double best_result = 0.0;  // Sử dụng double thay vì float
-    for (int i = 0; i < NUM_THREADS; i++) {
-        if (threadData[i].valid) {
-            double fx = evaluatePostfix(output, threadData[i].result);  // Sử dụng double
-            if (isnan(fx) || isinf(fx)) {
-                printf("%s: Giá trị hàm tại x = %.10f không hợp lệ (NaN/Inf)\n", threadData[i].method_name, threadData[i].result);
-                continue;
-            }
-            if (fabs(fx) < 1e-10) {  // Điều chỉnh EPSILON từ 1e-6 thành 1e-10
-                best_result = threadData[i].result;
-                found = 1;
-                printf("%s tìm được nghiệm: %.10f\n", threadData[i].method_name, best_result);
-                break;
-            } else {
-                printf("%s: Giá trị hàm tại x = %.10f là %.10f (không phải nghiệm)\n", threadData[i].method_name, threadData[i].result, fx);
+        if (found) {
+            long double fx = evaluatePostfix(output, best_result);
+            printf("Kết quả với nghiệm %.10Lf là: %.10Lf\n", best_result, fx);
+            if (fabsl(fx) > 1e-10) {
+                printf("Cảnh báo: Giá trị tại nghiệm không đủ gần 0 (có thể không phải nghiệm chính xác)!\n");
             }
         } else {
-            printf("%s: Không hội tụ (kết quả không hợp lệ)\n", threadData[i].method_name);
+            printf("Không tìm được nghiệm hợp lệ!\n");
         }
-    }
 
-    double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-    printf("Thời gian tìm nghiệm: %.6f giây\n", elapsed);
-
-    if (found) {
-        double fx = evaluatePostfix(output, best_result);  // Sử dụng double
-        printf("Kết quả với nghiệm %.10f là: %.10f\n", best_result, fx);
-        if (fabs(fx) > 1e-10) {  // Điều chỉnh EPSILON từ 1e-6 thành 1e-10
-            printf("Cảnh báo: Giá trị tại nghiệm không đủ gần 0!\n");
-        }
+        free(output);
     } else {
-        printf("Không tìm được nghiệm hợp lệ!\n");
+        printf("Lỗi khi chuyển đổi biểu thức!\n");
     }
-
-    free(output);
     return 0;
 }
