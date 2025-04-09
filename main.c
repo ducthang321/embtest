@@ -7,12 +7,10 @@
 #include "postfix.h"
 #include "findroot.h"
 
-// Bỏ #define NUM_THREADS vì không cần thread nữa
-
 int main() {
     struct timespec start, end;
     Token *output = NULL;
-    char str[MAX];  // Sử dụng MAX từ postfix.h
+    char str[MAX];
 
     printf("Nhập biểu thức (ví dụ: x^2-4 hoặc (x^2+1)/(x-1)): ");
     if (fgets(str, MAX, stdin) == NULL) {
@@ -39,7 +37,7 @@ int main() {
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    // Gọi trực tiếp phương pháp Newton-Raphson
+    // Gọi phương pháp Newton-Raphson
     float result = newtonRaphson(output);
     int found = 0;
     float best_result = 0.0;
