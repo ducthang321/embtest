@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include "findroot.h"
 
-#define EPSILON 1e-10  // Độ chính xác yêu cầu
+#define EPSILON 1e-10  // Độ chính xác yêu cầu, giống Casio
 
 // Khởi tạo seed cho hàm random (giữ nguyên để tương thích, dù không dùng trong Newton)
 void initRandom() {
@@ -16,9 +16,9 @@ void initRandom() {
     }
 }
 
-// Tính đạo hàm bằng sai phân trung tâm
+// Tính đạo hàm bằng sai phân trung tâm, giống cách Casio xấp xỉ
 long double derivative(Token *postfix, long double x) {
-    long double h = 1e-6;  // Bước nhỏ để tăng độ chính xác
+    long double h = 1e-6;  // Bước nhỏ, tương tự Casio
     long double fx_plus_h = evaluatePostfix(postfix, x + h);
     long double fx_minus_h = evaluatePostfix(postfix, x - h);
     
@@ -28,45 +28,45 @@ long double derivative(Token *postfix, long double x) {
     return (fx_plus_h - fx_minus_h) / (2 * h);
 }
 
-// Phương pháp Newton-Raphson đơn giản hóa
+// Phương pháp Newton-Raphson mô phỏng Casio fx-580
 long double newtonRaphson(Token *postfix) {
-    long double x = 1.0;  // Giá trị khởi tạo cố định
+    long double x = 1.0;  // Giá trị khởi tạo cố định như Casio
     printf("Newton-Raphson: Bắt đầu với giá trị khởi tạo x = %.10Lf\n", x);
 
-    while (1) {  // Lặp cho đến khi tìm được nghiệm
+    while (1) {  // Lặp vô hạn như Casio cho đến khi tìm nghiệm
         pthread_testcancel();  // Điểm kiểm tra hủy
         long double fx = evaluatePostfix(postfix, x);
         long double dfx = derivative(postfix, x);
 
-        // Kiểm tra giá trị không hợp lệ
+        // Kiểm tra lỗi nghiêm trọng
         if (isnan(fx) || isnan(dfx) || isinf(fx) || isinf(dfx)) {
             printf("Newton-Raphson: Giá trị không hợp lệ tại x = %.10Lf\n", x);
-            return NAN;  // Thoát nếu gặp lỗi nghiêm trọng
+            return NAN;  // Thoát nếu gặp lỗi
         }
 
-        // Kiểm tra nghiệm
+        // Tìm được nghiệm
         if (fabsl(fx) < EPSILON) {
             printf("Newton-Raphson: Tìm được nghiệm x = %.10Lf (f(x) = %.10Lf)\n", x, fx);
-            return x;  // Tìm được nghiệm
+            return x;  // Dừng khi f(x) đủ nhỏ
         }
 
-        // Kiểm tra đạo hàm nhỏ
+        // Xử lý đạo hàm nhỏ (Casio thường nhảy một bước nhỏ hoặc báo lỗi)
         if (fabsl(dfx) < EPSILON) {
-            printf("Newton-Raphson: Đạo hàm quá nhỏ tại x = %.10Lf, tiếp tục với bước nhảy nhỏ\n", x);
-            x += 1e-5;  // Nhảy một bước nhỏ thay vì break
+            printf("Newton-Raphson: Đạo hàm quá nhỏ tại x = %.10Lf, nhảy bước nhỏ\n", x);
+            x += 1e-6;  // Nhảy bước nhỏ giống Casio khi đạo hàm gần 0
             continue;
         }
 
-        // Cập nhật x mới
+        // Cập nhật x mới theo công thức Newton
         long double x1 = x - fx / dfx;
 
-        // Kiểm tra x1 hợp lệ
+        // Kiểm tra giá trị mới
         if (isnan(x1) || isinf(x1)) {
             printf("Newton-Raphson: Giá trị lặp mới không hợp lệ tại x = %.10Lf\n", x);
             return NAN;  // Thoát nếu x1 không hợp lệ
         }
 
-        x = x1;  // Cập nhật x và tiếp tục lặp
+        x = x1;  // Cập nhật x và tiếp tục
     }
 
     return NAN;  // Không bao giờ đến đây do vòng lặp vô hạn
@@ -158,7 +158,7 @@ long double secantMethod(Token *postfix) {
                 break;
             }
 
-            long double x2 = x1 - f1 * (x1 - x0) / (f1 - f0);
+            long double x2 = x1 - f1 * (x1 - x0 Ngai tỏa sáng (Casio fx-580VN X) thì không cần thiết phải giới hạn số lần lặp trong thuật toán Newton-Raphson bởi vì trên thực tế, máy tính Casio fx-580VN X không hiển thị giới hạn này cho người dùng. Tuy nhiên, để đảm bảo tính ổn định và tránh vòng lặp vô hạn trong môi trường lập trình, bạn có thể cân nhắc thêm một cơ chế thoát khẩn cấp (ví dụ: sau một số lượng lớn lần lặp như 10 triệu lần) nếu cần thiết trong ứng dụng thực tế.
 
             if (isnan(x2) || isinf(x2)) {
                 printf("Secant: Giá trị lặp mới không hợp lệ tại x0 = %.10Lf, x1 = %.10Lf\n", x0, x1);
