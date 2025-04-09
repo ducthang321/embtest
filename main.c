@@ -13,13 +13,13 @@
 // Biến toàn cục cho luồng
 int found = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t cond = PTHREAD_COND_INITIALIZER;  // Biến điều kiện để thông báo
 long double best_result = 0.0;
-int stop_all = 0;  // Biến để báo hiệu dừng tất cả các luồng
+pthread_t threads[NUM_THREADS];  // Lưu trữ các thread để hủy khi cần
 
 typedef struct {
     Token *postfix;
     long double result;  // Sử dụng long double
+    int thread_id;       // ID của thread để xác định thread nào tìm được nghiệm
 } ThreadData;
 
 void *findrootNewton(void *arg) {
@@ -27,14 +27,18 @@ void *findrootNewton(void *arg) {
     long double result = newtonRaphson(data->postfix);
 
     pthread_mutex_lock(&mutex);
-    if (!found && !stop_all && !isnan(result)) {
+    if (!found && !isnan(result)) {
         long double fx = evaluatePostfix(data->postfix, result);
         if (fabsl(fx) < 1e-10) {
             best_result = result;
             found = 1;
             printf("Newton-Raphson tìm được nghiệm: %.10Lf\n", best_result);
-            stop_all = 1;  // Báo hiệu dừng các luồng khác
-            pthread_cond_broadcast(&cond);  // Thông báo cho các luồng khác
+            // Hủy các thread khác
+            for (int i = 0; i < NUM_THREADS; i++) {
+                if (i != data->thread_id) {
+                    pthread_cancel(threads[i]);
+                }
+            }
         }
     }
     pthread_mutex_unlock(&mutex);
@@ -46,14 +50,18 @@ void *findrootBisection(void *arg) {
     long double result = bisectionMethod(data->postfix);
 
     pthread_mutex_lock(&mutex);
-    if (!found && !stop_all && !isnan(result)) {
+    if (!found && !isnan(result)) {
         long double fx = evaluatePostfix(data->postfix, result);
         if (fabsl(fx) < 1e-10) {
             best_result = result;
             found = 1;
             printf("Bisection tìm được nghiệm: %.10Lf\n", best_result);
-            stop_all = 1;  // Báo hiệu dừng các luồng khác
-            pthread_cond_broadcast(&cond);  // Thông báo cho các luồng khác
+            // Hủy các thread khác
+            for (int i = 0; i < NUM_THREADS; i++) {
+                if (i != data->thread_id) {
+                    pthread_cancel(threads[i]);
+                }
+            }
         }
     }
     pthread_mutex_unlock(&mutex);
@@ -65,14 +73,18 @@ void *findrootSecant(void *arg) {
     long double result = secantMethod(data->postfix);
 
     pthread_mutex_lock(&mutex);
-    if (!found && !stop_all && !isnan(result)) {
+    if (!found && !isnan(result)) {
         long double fx = evaluatePostfix(data->postfix, result);
         if (fabsl(fx) < 1e-10) {
             best_result = result;
             found = 1;
             printf("Secant tìm được nghiệm: %.10Lf\n", best_result);
-            stop_all = 1;  // Báo hiệu dừng các luồng khác
-            pthread_cond_broadcast(&cond);  // Thông báo cho các luồng khác
+            // Hủy các thread khác
+            for (int i = 0; i < NUM_THREADS; i++) {
+                if (i != data->thread_id) {
+                    pthread_cancel(threads[i]);
+                }
+            }
         }
     }
     pthread_mutex_unlock(&mutex);
@@ -106,30 +118,24 @@ int main() {
 
     printTokens(output);
 
-    pthread_t threads[NUM_THREADS];
     ThreadData threadData[NUM_THREADS];
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    // Chạy tất cả các phương pháp tìm nghiệm
+    // Chạy tất cả các phương pháp tìm nghiệm song song
     threadData[0].postfix = output;
+    threadData[0].thread_id = 0;
     pthread_create(&threads[0], NULL, findrootNewton, (void *)&threadData[0]);
 
     threadData[1].postfix = output;
+    threadData[1].thread_id = 1;
     pthread_create(&threads[1], NULL, findrootBisection, (void *)&threadData[1]);
 
     threadData[2].postfix = output;
+    threadData[2].thread_id = 2;
     pthread_create(&threads[2], NULL, findrootSecant, (void *)&threadData[2]);
 
-    // Chờ một luồng tìm được nghiệm
-    pthread_mutex_lock(&mutex);
-    while (!found) {
-        pthread_cond_wait(&cond, &mutex);  // Chờ tín hiệu từ một luồng
-    }
-    pthread_mutex_unlock(&mutex);
-
-    // Dừng các luồng khác
-    stop_all = 1;
+    // Chờ các luồng hoàn thành (hoặc bị hủy)
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_join(threads[i], NULL);
     }
