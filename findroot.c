@@ -3,13 +3,13 @@
 #include "findroot.h"
 
 #define EPSILON 1e-6
+#define MAX_ATTEMPTS 1000000 // Giới hạn số lần lặp để tránh vòng lặp vô hạn
 
 float derivative(Token *postfix, float x) {
     float h = 1e-4;
     float fx_plus_h = evaluatePostfix(postfix, x + h);
     float fx_minus_h = evaluatePostfix(postfix, x - h);
     
-    // Kiểm tra lỗi trong tính toán đạo hàm
     if (isnan(fx_plus_h) || isnan(fx_minus_h) || isinf(fx_plus_h) || isinf(fx_minus_h)) {
         return NAN;
     }
@@ -17,43 +17,52 @@ float derivative(Token *postfix, float x) {
 }
 
 float newtonRaphson(Token *postfix) {
-    float x = 1.0; // Giá trị khởi tạo ban đầu
-    float fx, dfx, x1;
+    float initial_guesses[] = {1.0, -1.0, 0.0, 2.0, -2.0}; // Nhiều giá trị khởi tạo
+    int num_guesses = sizeof(initial_guesses) / sizeof(initial_guesses[0]);
     
-    while (1) {
-        fx = evaluatePostfix(postfix, x);
-        dfx = derivative(postfix, x);
+    for (int guess_idx = 0; guess_idx < num_guesses; guess_idx++) {
+        float x = initial_guesses[guess_idx];
+        int iteration = 0;
 
-        // Kiểm tra giá trị không hợp lệ
-        if (isnan(fx) || isnan(dfx) || isinf(fx) || isinf(dfx)) {
-            return NAN;
-        }
+        while (iteration < MAX_ATTEMPTS) {
+            float fx = evaluatePostfix(postfix, x);
+            float dfx = derivative(postfix, x);
 
-        // Kiểm tra đạo hàm gần 0 (tránh chia cho 0)
-        if (fabs(dfx) < EPSILON) {
-            return NAN; // Đạo hàm quá nhỏ, phương pháp không hội tụ
-        }
-
-        x1 = x - fx / dfx;
-
-        // Kiểm tra điều kiện dừng: sai số giữa 2 lần lặp liên tiếp
-        if (fabs(x1 - x) < EPSILON) {
-            // Kiểm tra xem giá trị hàm tại x1 có đủ nhỏ không
-            float fx1 = evaluatePostfix(postfix, x1);
-            if (fabs(fx1) < EPSILON) {
-                return x1; // Nghiệm hợp lệ
+            // Kiểm tra giá trị không hợp lệ
+            if (isnan(fx) || isnan(dfx) || isinf(fx) || isinf(dfx)) {
+                printf("Lỗi: Giá trị không hợp lệ (NaN/Inf) tại x = %.6f với giá trị khởi tạo %.6f\n", x, initial_guesses[guess_idx]);
+                break;
             }
-            return NAN; // Sai số lặp nhỏ nhưng không phải nghiệm
+
+            // Kiểm tra giá trị hàm tại x
+            if (fabs(fx) < EPSILON) {
+                return x; // Tìm được nghiệm
+            }
+
+            // Kiểm tra đạo hàm gần 0
+            if (fabs(dfx) < EPSILON) {
+                printf("Cảnh báo: Đạo hàm quá nhỏ tại x = %.6f với giá trị khởi tạo %.6f\n", x, initial_guesses[guess_idx]);
+                break;
+            }
+
+            float x1 = x - fx / dfx;
+
+            // Kiểm tra giá trị mới
+            if (isnan(x1) || isinf(x1)) {
+                printf("Lỗi: Giá trị lặp mới không hợp lệ tại x = %.6f với giá trị khởi tạo %.6f\n", x, initial_guesses[guess_idx]);
+                break;
+            }
+
+            x = x1;
+            iteration++;
         }
 
-        // Kiểm tra giá trị hàm tại x1 để dừng sớm
-        float fx1 = evaluatePostfix(postfix, x1);
-        if (fabs(fx1) < EPSILON) {
-            return x1; // Đã tìm được nghiệm
+        // Nếu vượt quá số lần lặp tối đa
+        if (iteration >= MAX_ATTEMPTS) {
+            printf("Cảnh báo: Vượt quá số lần lặp tối đa với giá trị khởi tạo %.6f\n", initial_guesses[guess_idx]);
         }
-
-        x = x1; // Cập nhật x cho lần lặp tiếp theo
     }
 
-    return NAN; // Không bao giờ đến đây
+    // Nếu không tìm được nghiệm với bất kỳ giá trị khởi tạo nào
+    return NAN;
 }
